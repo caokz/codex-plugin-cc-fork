@@ -7,8 +7,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { getCodexAvailability } from "./lib/codex.mjs";
-import { loadPromptTemplate, interpolateTemplate } from "./lib/prompts.mjs";
-import { getConfig, listJobs } from "./lib/state.mjs";
+import { interpolateTemplate, resolvePromptTemplate } from "./lib/prompts.mjs";
+import { getConfig, listJobs, setConfig } from "./lib/state.mjs";
 import { sortJobsNewestFirst } from "./lib/job-control.mjs";
 import { SESSION_ID_ENV } from "./lib/tracked-jobs.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
@@ -45,14 +45,27 @@ function filterJobsForCurrentSession(jobs, input = {}) {
   return jobs.filter((job) => job.sessionId === sessionId);
 }
 
-function buildStopReviewPrompt(input = {}) {
+function buildStopReviewPrompt(input = {}, config = {}, workspaceRoot = "") {
   const lastAssistantMessage = String(input.last_assistant_message ?? "").trim();
-  const template = loadPromptTemplate(ROOT_DIR, "stop-review-gate");
+  const template = resolvePromptTemplate(ROOT_DIR, config.stopReviewGatePrompt || "default", workspaceRoot);
   const claudeResponseBlock = lastAssistantMessage
     ? ["Previous Claude response:", lastAssistantMessage].join("\n")
     : "";
+
+  let designDocBlock = "";
+  const designDocPath = String(config.stopReviewGateDesignDoc ?? "").trim();
+  if (designDocPath) {
+    const resolvedPath = path.isAbsolute(designDocPath) ? designDocPath : path.resolve(workspaceRoot, designDocPath);
+    if (fs.existsSync(resolvedPath)) {
+      designDocBlock = "Design document to review against: " + designDocPath + "\nRead this file and compare the changed code against it. Only read the sections relevant to the files that were changed.";
+    } else {
+      designDocBlock = "Design document (" + designDocPath + "): [file not found — skipped]";
+    }
+  }
+
   return interpolateTemplate(template, {
-    CLAUDE_RESPONSE_BLOCK: claudeResponseBlock
+    CLAUDE_RESPONSE_BLOCK: claudeResponseBlock,
+    DESIGN_DOC_BLOCK: designDocBlock
   });
 }
 
@@ -76,28 +89,35 @@ function parseStopReviewOutput(rawOutput) {
     };
   }
 
-  const firstLine = text.split(/\r?\n/, 1)[0].trim();
+  const lines = text.split(/\r?\n/);
+  const firstLine = lines[0].trim();
   if (firstLine.startsWith("ALLOW:")) {
-    return { ok: true, reason: null };
+    return { ok: true, reason: null, detail: null };
   }
   if (firstLine.startsWith("BLOCK:")) {
     const reason = firstLine.slice("BLOCK:".length).trim() || text;
+    const detailLines = lines.slice(1).filter((l) => l.trim().startsWith("- "));
+    const detail = detailLines.length > 0
+      ? detailLines.map((l) => l.trim()).join("\n")
+      : null;
     return {
       ok: false,
-      reason: `Codex stop-time review found issues that still need fixes before ending the session: ${reason}`
+      reason: `Codex stop-time review found issues that still need fixes before ending the session: ${reason}`,
+      detail
     };
   }
 
   return {
     ok: false,
     reason:
-      "The stop-time Codex review task returned an unexpected answer. Run /codex:review --wait manually or bypass the gate."
+      "The stop-time Codex review task returned an unexpected answer. Run /codex:review --wait manually or bypass the gate.",
+    detail: null
   };
 }
 
-function runStopReview(cwd, input = {}) {
+function runStopReview(cwd, input = {}, config = {}, workspaceRoot = "") {
   const scriptPath = path.join(SCRIPT_DIR, "codex-companion.mjs");
-  const prompt = buildStopReviewPrompt(input);
+  const prompt = buildStopReviewPrompt(input, config, workspaceRoot);
   const childEnv = {
     ...process.env,
     ...(input.session_id ? { [SESSION_ID_ENV]: input.session_id } : {})
@@ -163,15 +183,31 @@ function main() {
     return;
   }
 
-  const review = runStopReview(cwd, input);
+  const maxRounds = config.stopReviewGateMaxRounds || 3;
+  const currentRound = config.stopReviewGateRound || 0;
+
+  if (currentRound >= maxRounds) {
+    setConfig(workspaceRoot, "stopReviewGateRound", 0);
+    logNote(`Stop-time review gate reached the maximum of ${maxRounds} rounds. Allowing the session to stop.`);
+    logNote(runningTaskNote);
+    return;
+  }
+
+  const review = runStopReview(cwd, input, config, workspaceRoot);
   if (!review.ok) {
+    setConfig(workspaceRoot, "stopReviewGateRound", currentRound + 1);
+    const detailNote = review.detail ? `\n${review.detail}` : "";
+    const roundNote = ` (review round ${currentRound + 1}/${maxRounds})`;
     emitDecision({
       decision: "block",
-      reason: runningTaskNote ? `${runningTaskNote} ${review.reason}` : review.reason
+      reason: runningTaskNote
+        ? `${runningTaskNote} ${review.reason}${roundNote}${detailNote}`
+        : `${review.reason}${roundNote}${detailNote}`
     });
     return;
   }
 
+  setConfig(workspaceRoot, "stopReviewGateRound", 0);
   logNote(runningTaskNote);
 }
 

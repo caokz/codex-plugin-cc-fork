@@ -211,7 +211,7 @@ async function buildSetupReport(cwd, actionsTaken = []) {
 
 async function handleSetup(argv) {
   const { options } = parseCommandInput(argv, {
-    valueOptions: ["cwd"],
+    valueOptions: ["cwd", "review-gate-prompt", "review-gate-max-rounds", "review-gate-design-doc"],
     booleanOptions: ["json", "enable-review-gate", "disable-review-gate"]
   });
 
@@ -229,6 +229,27 @@ async function handleSetup(argv) {
   } else if (options["disable-review-gate"]) {
     setConfig(workspaceRoot, "stopReviewGate", false);
     actionsTaken.push(`Disabled the stop-time review gate for ${workspaceRoot}.`);
+  }
+
+  if (options["review-gate-prompt"] != null) {
+    const promptValue = options["review-gate-prompt"];
+    setConfig(workspaceRoot, "stopReviewGatePrompt", promptValue);
+    actionsTaken.push(`Set review gate prompt to: ${promptValue}`);
+  }
+
+  if (options["review-gate-max-rounds"] != null) {
+    const rounds = parseInt(options["review-gate-max-rounds"], 10);
+    if (Number.isNaN(rounds) || rounds < 1) {
+      throw new Error("--review-gate-max-rounds must be a positive integer.");
+    }
+    setConfig(workspaceRoot, "stopReviewGateMaxRounds", rounds);
+    actionsTaken.push(`Set review gate max rounds to: ${rounds}`);
+  }
+
+  if (options["review-gate-design-doc"] != null) {
+    const docValue = options["review-gate-design-doc"];
+    setConfig(workspaceRoot, "stopReviewGateDesignDoc", docValue);
+    actionsTaken.push(`Set review gate design document to: ${docValue}`);
   }
 
   const finalReport = await buildSetupReport(cwd, actionsTaken);

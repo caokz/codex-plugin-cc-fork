@@ -1,6 +1,6 @@
 ---
-description: Check whether the local Codex CLI is ready and optionally toggle the stop-time review gate
-argument-hint: '[--enable-review-gate|--disable-review-gate]'
+description: Check whether the local Codex CLI is ready and optionally configure the stop-time review gate
+argument-hint: '[--enable-review-gate|--disable-review-gate] [--review-gate-prompt <default|code-quality|security|performance|trading-system|path/to/custom.md>] [--review-gate-max-rounds <n>] [--review-gate-design-doc <path/to/design.md>]'
 allowed-tools: Bash(node:*), Bash(npm:*), AskUserQuestion
 ---
 
