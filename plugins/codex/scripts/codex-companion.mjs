@@ -146,7 +146,10 @@ function parseCommandInput(argv, config = {}) {
 }
 
 function resolveCommandCwd(options = {}) {
-  return options.cwd ? path.resolve(process.cwd(), options.cwd) : process.cwd();
+  if (options.cwd) {
+    return path.resolve(process.cwd(), options.cwd);
+  }
+  return process.env.CLAUDE_PROJECT_DIR || process.cwd();
 }
 
 function resolveCommandWorkspace(options = {}) {
