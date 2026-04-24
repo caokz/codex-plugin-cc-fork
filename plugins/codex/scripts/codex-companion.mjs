@@ -204,6 +204,11 @@ async function buildSetupReport(cwd, actionsTaken = []) {
     auth: authStatus,
     sessionRuntime: getSessionRuntimeStatus(process.env, workspaceRoot),
     reviewGateEnabled: Boolean(config.stopReviewGate),
+    reviewGateConfig: config.stopReviewGate ? {
+      prompt: config.stopReviewGatePrompt || "default",
+      maxRounds: config.stopReviewGateMaxRounds || 3,
+      designDoc: config.stopReviewGateDesignDoc || ""
+    } : null,
     actionsTaken,
     nextSteps
   };
