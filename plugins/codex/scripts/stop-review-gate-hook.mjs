@@ -174,7 +174,7 @@ function main() {
   debugLog("INPUT:", input);
   const cwd = input.cwd || process.env.CLAUDE_PROJECT_DIR || process.cwd();
   debugLog("CWD:", cwd, "ENV_CLAUDE_PROJECT_DIR:", process.env.CLAUDE_PROJECT_DIR || "(not set)");
-  const workspaceRoot = resolveWorkspaceRoot(cwd);
+  const workspaceRoot = cwd;
   debugLog("WORKSPACE_ROOT:", workspaceRoot);
   const config = getConfig(workspaceRoot);
   debugLog("CONFIG:", config);
