@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import process from "node:process";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -159,11 +160,24 @@ function runStopReview(cwd, input = {}, config = {}, workspaceRoot = "") {
   }
 }
 
+const DEBUG_LOG = path.join(os.tmpdir(), "codex-stop-gate-debug.log");
+
+function debugLog(...args) {
+  const line = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+  try {
+    fs.appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${line}\n`);
+  } catch { /* ignore */ }
+}
+
 function main() {
   const input = readHookInput();
+  debugLog("INPUT:", input);
   const cwd = input.cwd || process.env.CLAUDE_PROJECT_DIR || process.cwd();
+  debugLog("CWD:", cwd, "ENV_CLAUDE_PROJECT_DIR:", process.env.CLAUDE_PROJECT_DIR || "(not set)");
   const workspaceRoot = resolveWorkspaceRoot(cwd);
+  debugLog("WORKSPACE_ROOT:", workspaceRoot);
   const config = getConfig(workspaceRoot);
+  debugLog("CONFIG:", config);
 
   const jobs = sortJobsNewestFirst(filterJobsForCurrentSession(listJobs(workspaceRoot), input));
   const runningJob = jobs.find((job) => job.status === "queued" || job.status === "running");
@@ -172,16 +186,20 @@ function main() {
     : null;
 
   if (!config.stopReviewGate) {
+    debugLog("SKIP: stopReviewGate is false");
     logNote(runningTaskNote);
     return;
   }
 
   const setupNote = buildSetupNote(cwd);
   if (setupNote) {
+    debugLog("SKIP: Codex not available:", setupNote);
     logNote(setupNote);
     logNote(runningTaskNote);
     return;
   }
+
+  debugLog("PROCEEDING: running stop review");
 
   const maxRounds = config.stopReviewGateMaxRounds || 3;
   const currentRound = config.stopReviewGateRound || 0;
