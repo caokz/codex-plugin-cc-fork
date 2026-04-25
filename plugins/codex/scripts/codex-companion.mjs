@@ -153,7 +153,7 @@ function resolveCommandCwd(options = {}) {
 }
 
 function resolveCommandWorkspace(options = {}) {
-  return resolveWorkspaceRoot(resolveCommandCwd(options));
+  return resolveCommandCwd(options);
 }
 
 function sleep(ms) {
