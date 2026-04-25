@@ -5,6 +5,9 @@
 - [项目概述](#项目概述)
 - [环境要求](#环境要求)
 - [安装](#安装)
+  - [从官方 Marketplace 安装](#从官方-marketplace-安装)
+  - [从自定义 Fork 安装](#从自定义-fork-安装)
+  - [安装 Codex CLI](#安装-codex-cli)
 - [初始设置](#初始设置)
 - [斜杠命令](#斜杠命令)
   - [/codex:review](#codexreview)
@@ -15,7 +18,9 @@
   - [/codex:cancel](#codexcancel)
   - [/codex:setup](#codexsetup)
 - [Review Gate（审查门）](#review-gate审查门)
+  - [工作原理](#工作原理)
   - [启用与禁用](#启用与禁用)
+  - [交互式配置](#交互式配置)
   - [预设审查模板](#预设审查模板)
   - [多轮审查机制](#多轮审查机制)
   - [设计文档对照审查](#设计文档对照审查)
@@ -71,6 +76,15 @@
 /reload-plugins
 ```
 
+> **更新 Fork 版本**：Claude Code 的 marketplace 缓存不会自动更新。推送新代码到 fork 后，需要手动更新缓存：
+>
+> ```bash
+> cd ~/.claude/plugins/marketplaces/<your-fork-name>
+> git pull
+> ```
+>
+> 然后重新安装插件并重载。如果版本号未变化，Claude Code 可能不会检测到更新，因此每次推送前建议先 bump version。
+
 ### 安装 Codex CLI
 
 如果 Codex 尚未安装：
@@ -93,10 +107,11 @@ npm install -g @openai/codex
 /codex:setup
 ```
 
-该命令会检查：
-- Codex CLI 是否已安装
-- Codex 是否已认证登录
-- 当前环境是否就绪
+该命令会：
+1. 检查 Codex CLI 是否已安装（如未安装会提示安装）
+2. 检查 Codex 是否已认证登录
+3. 检查当前环境是否就绪
+4. **询问是否配置 Review Gate**（交互式引导）
 
 ## 斜杠命令
 
@@ -231,19 +246,48 @@ npm install -g @openai/codex
 
 Review Gate 是一个基于 `Stop` hook 的自动审查机制。当 Claude 完成代码修改并尝试停止时，自动触发 Codex 审查。如果发现问题，Claude 会被阻止停止，继续修复直到审查通过。
 
+### 工作原理
+
+```
+Claude 完成代码修改 → 尝试停止会话
+  → Stop hook 触发 → stop-review-gate-hook.mjs 运行
+  → 调用 Codex 审查上一次 Claude 回复中的代码变更
+  → 审查通过（ALLOW）→ 会话正常停止
+  → 审查不通过（BLOCK）→ Claude 被迫继续，修复问题后重新尝试停止
+```
+
 ### 启用与禁用
 
+**快捷方式**（只切换开关，不改变其他配置）：
+
 ```bash
-# 启用
+# 启用（使用当前配置的模板和轮次）
 /codex:setup --enable-review-gate
 
 # 禁用
 /codex:setup --disable-review-gate
 ```
 
-### 预设审查模板
+**交互式配置**（推荐，见下文）：
 
-通过 `--review-gate-prompt` 选择不同的审查维度：
+```bash
+/codex:setup
+```
+
+### 交互式配置
+
+运行 `/codex:setup` 后，Claude 会：
+
+1. 展示当前环境状态（Codex 是否可用、是否已登录等）
+2. 询问是否配置 Review Gate
+3. 如果选择配置，依次引导选择：
+   - **审查模板**（default / code-quality / security / performance / trading-system）
+   - **最大审查轮次**（3 / 5 / 10）
+   - **设计文档路径**（可选，留空跳过）
+
+整个过程通过 `AskUserQuestion` 交互完成，无需手动输入复杂的命令行参数。
+
+### 预设审查模板
 
 | 模板名称 | 审查重点 |
 |-----------|---------|
@@ -253,20 +297,11 @@ Review Gate 是一个基于 `Stop` hook 的自动审查机制。当 Claude 完�
 | `performance` | 性能审查：算法复杂度、内存泄漏、N+1 查询、阻塞操作 |
 | `trading-system` | 交易系统双重视角：A 股交易领域 + 工程质量 |
 
-**使用示例：**
-
-```bash
-/codex:setup --enable-review-gate --review-gate-prompt security
-/codex:setup --enable-review-gate --review-gate-prompt code-quality
-/codex:setup --enable-review-gate --review-gate-prompt performance
-/codex:setup --enable-review-gate --review-gate-prompt trading-system
-```
+在交互式配置中选择对应选项即可，也可通过 `--review-gate-prompt` 参数指定（适用于 Bash 直接调用）。
 
 ### 多轮审查机制
 
-通过 `--review-gate-max-rounds` 设置最大审查轮次（默认 3 轮）。
-
-**工作流程：**
+设置最大审查轮次后（默认 3 轮），Review Gate 会进行多轮审查直到通过或达到上限：
 
 ```
 第 1 轮: Claude 修改代码 → 尝试停止 → hook 触发 → Codex 审查
@@ -281,37 +316,26 @@ Review Gate 是一个基于 `Stop` hook 的自动审查机制。当 Claude 完�
 - 达到最大轮次后自动放行，不会无限循环
 - 如果某轮审查通过（ALLOW），轮次计数器归零
 
-**使用示例：**
-
-```bash
-/codex:setup --enable-review-gate --review-gate-max-rounds 5
-```
+在交互式配置中选择轮次即可（3 / 5 / 10），也可通过 `--review-gate-max-rounds` 参数指定。
 
 ### 设计文档对照审查
 
-通过 `--review-gate-design-doc` 指定设计文档路径。审查时 Codex 会：
+指定设计文档路径后，审查时 Codex 会：
 
 1. 识别被修改的文件
 2. 只读取设计文档中与修改文件相关的章节
 3. 对比实现是否符合设计规格
 4. 发现偏离时引用具体设计文档章节
 
-该功能在 `trading-system` 模板中尤其有用。
-
-**使用示例：**
-
-```bash
-/codex:setup --enable-review-gate --review-gate-prompt trading-system --review-gate-design-doc docs/trading-system-design.md
-```
-
-支持相对路径（相对于工作区根目录）和绝对路径。
+该功能在 `trading-system` 模板中尤其有用。在交互式配置的第 3 个问题中输入文档路径即可，支持相对路径（相对于工作区根目录）和绝对路径。
 
 ### 自定义审查模板
 
-`--review-gate-prompt` 也接受自定义模板文件路径：
+除了预设模板，也可以指定自定义模板文件路径：
 
 ```bash
-/codex:setup --enable-review-gate --review-gate-prompt path/to/my-review-template.md
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-companion.mjs" setup --json \
+  --enable-review-gate --review-gate-prompt path/to/my-review-template.md
 ```
 
 自定义模板需要包含以下占位符：
@@ -327,26 +351,45 @@ Review Gate 是一个基于 `Stop` hook 的自动审查机制。当 Claude 完�
 
 ### 配置示例
 
-#### 通用代码质量审查
+#### 交互式配置（推荐）
 
 ```bash
-/codex:setup --enable-review-gate --review-gate-prompt code-quality --review-gate-max-rounds 3
+/codex:setup
+# → Claude 展示环境状态
+# → 询问 "Would you like to configure the review gate?"
+# → 选择 "Configure review gate"
+# → 选择模板（如 trading-system）
+# → 选择轮次（如 5 rounds）
+# → 输入设计文档路径（如 docs/design.md，或留空跳过）
+# → Claude 执行配置并展示结果
 ```
+
+#### 快捷启用（使用上次配置）
+
+```bash
+/codex:setup --enable-review-gate
+```
+
+#### 通用代码质量审查
+
+交互式配置中选择：
+- 模板：`code-quality`
+- 轮次：`3 rounds (Recommended)`
+- 设计文档：留空跳过
 
 #### 安全审查
 
-```bash
-/codex:setup --enable-review-gate --review-gate-prompt security --review-gate-max-rounds 5
-```
+交互式配置中选择：
+- 模板：`security`
+- 轮次：`5 rounds`
+- 设计文档：留空跳过
 
 #### A 股交易系统审查（完整配置）
 
-```bash
-/codex:setup --enable-review-gate \
-  --review-gate-prompt trading-system \
-  --review-gate-max-rounds 5 \
-  --review-gate-design-doc docs/trading-system-design.md
-```
+交互式配置中选择：
+- 模板：`trading-system`
+- 轮次：`5 rounds`
+- 设计文档：`docs/trading-system-design.md`
 
 `trading-system` 模板的审查覆盖范围：
 
@@ -372,6 +415,8 @@ Review Gate 是一个基于 `Stop` hook 的自动审查机制。当 Claude 完�
 ```bash
 /codex:setup --json
 ```
+
+JSON 输出中的 `reviewGateConfig` 字段包含当前模板、轮次和设计文档配置。
 
 ## Codex 配置
 
@@ -429,7 +474,12 @@ codex resume <session-id>
 ### 开启自动审查门
 
 ```bash
-/codex:setup --enable-review-gate --review-gate-prompt security --review-gate-max-rounds 3
+# 首次配置（交互式）
+/codex:setup
+# → 选择 "Configure review gate" → 选择模板 → 选择轮次 → 输入设计文档路径
+
+# 之后只需简单开关
+/codex:setup --enable-review-gate
 # ... 正常工作，每次 Claude 完成修改后自动触发审查 ...
 /codex:setup --disable-review-gate
 ```
@@ -450,6 +500,11 @@ plugins/codex/
 ├── hooks/
 │   └── hooks.json            # 生命周期钩子配置
 ├── prompts/                  # 审查提示模板
+│   ├── stop-review-gate-default.md
+│   ├── stop-review-gate-code-quality.md
+│   ├── stop-review-gate-security.md
+│   ├── stop-review-gate-performance.md
+│   └── stop-review-gate-trading-system.md
 ├── schemas/                  # JSON Schema 验证
 └── scripts/
     ├── codex-companion.mjs   # 主入口 CLI
@@ -501,7 +556,27 @@ npm run check-version              # 验证版本一致性
 
 ### 审查没有触发怎么办？
 
-1. 确认插件已安装：检查 `/codex:setup` 是否可用
-2. 确认 review gate 已启用：运行 `/codex:setup --json` 检查 `stopReviewGate` 是否为 `true`
-3. 确认 Codex 可用：运行 `/codex:setup` 检查环境状态
-4. 确认上一轮 Claude 回复中有代码修改：纯状态查询不会触发审查
+1. **确认插件已安装**：检查 `/codex:setup` 是否可用
+2. **确认 Review Gate 已启用**：运行 `/codex:setup --json` 检查 `stopReviewGate` 是否为 `true`
+3. **确认 Codex 可用**：运行 `/codex:setup` 检查环境状态
+4. **确认上一轮 Claude 回复中有代码修改**：纯状态查询不会触发审查
+5. **查看调试日志**：hook 会写调试信息到 `TEMP/codex-stop-gate-debug.log`：
+   ```bash
+   # Windows
+   cat "%TEMP%/codex-stop-gate-debug.log"
+   # macOS/Linux
+   cat "$TMPDIR/codex-stop-gate-debug.log"
+   ```
+   日志中包含 INPUT、CWD、WORKSPACE_ROOT、STATE_DIR、CONFIG 等信息，可以确认 hook 是否执行以及配置是否正确。
+6. **确认状态文件**：检查 `TEMP/codex-companion/<workspace-slug>-<hash>/state.json` 中的 `stopReviewGate` 字段。
+
+### Fork 版本推送后插件没有更新？
+
+Claude Code 的 marketplace 使用 git 缓存，不会自动更新。推送后需要：
+
+```bash
+cd ~/.claude/plugins/marketplaces/<your-fork-name>
+git pull
+```
+
+然后重新安装插件（`/plugin install codex@openai-codex`）并重载（`/reload-plugins`）。建议每次推送前 bump version，确保 Claude Code 检测到变更。
