@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { getCodexAvailability } from "./lib/codex.mjs";
 import { interpolateTemplate, resolvePromptTemplate } from "./lib/prompts.mjs";
-import { getConfig, listJobs, setConfig } from "./lib/state.mjs";
+import { getConfig, listJobs, setConfig, resolveStateDir } from "./lib/state.mjs";
 import { sortJobsNewestFirst } from "./lib/job-control.mjs";
 import { SESSION_ID_ENV } from "./lib/tracked-jobs.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
@@ -177,6 +177,7 @@ function main() {
   const workspaceRoot = cwd;
   debugLog("WORKSPACE_ROOT:", workspaceRoot);
   const config = getConfig(workspaceRoot);
+  debugLog("STATE_DIR:", resolveStateDir(workspaceRoot));
   debugLog("CONFIG:", config);
 
   const jobs = sortJobsNewestFirst(filterJobsForCurrentSession(listJobs(workspaceRoot), input));
