@@ -61,11 +61,12 @@ function buildStopReviewPrompt(input = {}, config = {}, workspaceRoot = "") {
     ? ["Previous Claude response:", lastAssistantMessage].join("\n")
     : "";
 
-  // Capture actual code changes via git diff (staged + unstaged)
+  // Capture actual code changes: committed (last commit), staged, and unstaged
+  const committedDiff = runGit(workspaceRoot, ["diff", "HEAD~1", "HEAD"]);
   const changedFiles = runGit(workspaceRoot, ["diff", "--name-only", "HEAD"]);
   const stagedDiff = runGit(workspaceRoot, ["diff", "--cached"]);
   const unstagedDiff = runGit(workspaceRoot, ["diff"]);
-  const changesBlock = buildChangesBlock(changedFiles, stagedDiff, unstagedDiff);
+  const changesBlock = buildChangesBlock(committedDiff, changedFiles, stagedDiff, unstagedDiff);
 
   let designDocBlock = "";
   const designDocPath = String(config.stopReviewGateDesignDoc ?? "").trim();
@@ -85,9 +86,12 @@ function buildStopReviewPrompt(input = {}, config = {}, workspaceRoot = "") {
   });
 }
 
-function buildChangesBlock(changedFiles, stagedDiff, unstagedDiff) {
+function buildChangesBlock(committedDiff, changedFiles, stagedDiff, unstagedDiff) {
   const parts = [];
-  if (changedFiles) {
+  if (committedDiff) {
+    parts.push("Committed changes (last commit):\n" + committedDiff);
+  }
+  if (changedFiles && !committedDiff) {
     parts.push("Changed files (since last commit):\n" + changedFiles);
   }
   if (stagedDiff) {
