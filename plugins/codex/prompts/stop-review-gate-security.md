@@ -7,6 +7,12 @@ For example, the output of /codex:setup or /codex:status does not count.
 Only direct edits made in that specific turn count.
 If the previous Claude turn was only a status update, a summary, a setup/login check, a review result, or output from a command that did not itself make direct edits in that turn, return ALLOW immediately and do no further work.
 
+## Actual Code Changes
+
+Review the actual code diffs below — not Claude's text summary. Identify what was actually changed, then evaluate the code itself.
+
+{{CHANGES_BLOCK}}
+
 Focus your review on:
 - Command injection, SQL injection, XSS, and other injection vulnerabilities
 - Improper input validation and sanitization

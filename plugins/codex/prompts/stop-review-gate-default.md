@@ -8,6 +8,12 @@ Only direct edits made in that specific turn count.
 If the previous Claude turn was only a status update, a summary, a setup/login check, a review result, or output from a command that did not itself make direct edits in that turn, return ALLOW immediately and do no further work.
 Challenge whether that specific work and its design choices should ship.
 
+## Actual Code Changes
+
+Review the actual code diffs below — not Claude's text summary. Identify what was actually changed, then evaluate the code itself.
+
+{{CHANGES_BLOCK}}
+
 {{CLAUDE_RESPONSE_BLOCK}}
 </task>
 

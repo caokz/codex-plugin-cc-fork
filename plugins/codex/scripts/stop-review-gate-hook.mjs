@@ -46,12 +46,26 @@ function filterJobsForCurrentSession(jobs, input = {}) {
   return jobs.filter((job) => job.sessionId === sessionId);
 }
 
+function runGit(cwd, args) {
+  const r = spawnSync("git", args, { cwd, encoding: "utf8", timeout: 10000 });
+  if (r.status === 0) {
+    return String(r.stdout || "").trim();
+  }
+  return null;
+}
+
 function buildStopReviewPrompt(input = {}, config = {}, workspaceRoot = "") {
   const lastAssistantMessage = String(input.last_assistant_message ?? "").trim();
   const template = resolvePromptTemplate(ROOT_DIR, config.stopReviewGatePrompt || "default", workspaceRoot);
   const claudeResponseBlock = lastAssistantMessage
     ? ["Previous Claude response:", lastAssistantMessage].join("\n")
     : "";
+
+  // Capture actual code changes via git diff (staged + unstaged)
+  const changedFiles = runGit(workspaceRoot, ["diff", "--name-only", "HEAD"]);
+  const stagedDiff = runGit(workspaceRoot, ["diff", "--cached"]);
+  const unstagedDiff = runGit(workspaceRoot, ["diff"]);
+  const changesBlock = buildChangesBlock(changedFiles, stagedDiff, unstagedDiff);
 
   let designDocBlock = "";
   const designDocPath = String(config.stopReviewGateDesignDoc ?? "").trim();
@@ -66,8 +80,26 @@ function buildStopReviewPrompt(input = {}, config = {}, workspaceRoot = "") {
 
   return interpolateTemplate(template, {
     CLAUDE_RESPONSE_BLOCK: claudeResponseBlock,
-    DESIGN_DOC_BLOCK: designDocBlock
+    DESIGN_DOC_BLOCK: designDocBlock,
+    CHANGES_BLOCK: changesBlock
   });
+}
+
+function buildChangesBlock(changedFiles, stagedDiff, unstagedDiff) {
+  const parts = [];
+  if (changedFiles) {
+    parts.push("Changed files (since last commit):\n" + changedFiles);
+  }
+  if (stagedDiff) {
+    parts.push("Staged changes:\n" + stagedDiff);
+  }
+  if (unstagedDiff) {
+    parts.push("Unstaged changes:\n" + unstagedDiff);
+  }
+  if (parts.length === 0) {
+    return "No uncommitted changes detected.";
+  }
+  return parts.join("\n\n");
 }
 
 function buildSetupNote(cwd) {

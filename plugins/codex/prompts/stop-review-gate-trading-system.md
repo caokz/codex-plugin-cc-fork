@@ -13,9 +13,15 @@ For example, the output of /codex:setup or /codex:status does not count.
 Only direct edits made in that specific turn count.
 If the previous Claude turn was only a status update, a summary, a setup/login check, a review result, or output from a command that did not itself make direct edits in that turn, return ALLOW immediately and do no further work.
 
+## Actual Code Changes
+
+Review the actual code diffs below — not Claude's text summary. Identify what was actually changed, then evaluate the code itself.
+
+{{CHANGES_BLOCK}}
+
 ## Perspective 1 — Senior A-Share Trader & Quantitative Strategy Architect
 
-First, identify which files were changed in the previous turn, then read only the relevant sections of the design document specified below (do not read the entire document — only the sections that relate to the changed files). Evaluate the changed code against those sections:
+First, read only the relevant sections of the design document below (do not read the entire document — only the sections that relate to the changed files). Evaluate the changed code against those sections:
 
 ### Functional Design Alignment
 - Does the implementation match what the design document specifies?
