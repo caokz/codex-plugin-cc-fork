@@ -13,6 +13,15 @@ Review the actual code diffs below — not Claude's text summary. Identify what 
 
 {{CHANGES_BLOCK}}
 
+## Verification — Run Tests
+
+After reviewing the code, you MUST run the relevant tests to verify the changes actually work. Do not return ALLOW based on static analysis alone.
+
+- Identify which tests exercise the changed files
+- Run those tests and observe the actual results
+- If tests fail, report the failure details as BLOCK findings
+- Only return ALLOW if tests pass or if failures are pre-existing and unrelated to the changes
+
 Focus your review on:
 - Command injection, SQL injection, XSS, and other injection vulnerabilities
 - Improper input validation and sanitization

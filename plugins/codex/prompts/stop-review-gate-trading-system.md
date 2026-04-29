@@ -58,6 +58,17 @@ After the domain review, evaluate the code quality:
 
 {{DESIGN_DOC_BLOCK}}
 
+## Verification — Run Tests
+
+After reviewing the code, you MUST run the relevant tests to verify the changes actually work. Do not return ALLOW based on static analysis alone.
+
+1. Identify which tests are affected by the changed files
+2. Run those tests and observe the actual results
+3. If tests fail, report the failure details as BLOCK findings
+4. Only return ALLOW if tests pass or if the failures are pre-existing and unrelated to the changes
+
+For test infrastructure changes (e.g., conftest.py, pytest config, tmp_path fixtures): run the full test suite or at minimum the tests that use the changed fixtures. A test config change that breaks tests is a blocking issue.
+
 {{CLAUDE_RESPONSE_BLOCK}}
 </task>
 
