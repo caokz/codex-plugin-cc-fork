@@ -66,24 +66,36 @@
 如果你 fork 了这个仓库（例如 `caokz/codex-plugin-cc-fork`）：
 
 ```bash
-# 添加自定义 marketplace
+# 1. 卸载旧版插件（避免缓存残留）
+/plugin uninstall codex@openai-codex
+
+# 2. 删除旧缓存目录（必须，否则装的是缓存里的旧版）
+rm -rf "C:/Users/70981/.claude/plugins/cache/openai-codex"
+
+# 3. 添加自定义 marketplace
 /plugin marketplace add caokz/codex-plugin-cc-fork
 
-# 安装插件
+# 4. 安装插件
 /plugin install codex@openai-codex
 
-# 重载插件
+# 5. 重载插件
 /reload-plugins
 ```
 
-> **更新 Fork 版本**：Claude Code 的 marketplace 缓存不会自动更新。推送新代码到 fork 后，需要手动更新缓存：
+> **为什么需要删缓存**：Claude Code 的 marketplace 缓存路径是按插件名（`codex`）固定的，和具体哪个 fork 无关。直接装会命中旧缓存，导致装的还是旧版本代码。删除缓存后重新安装才能从 fork 下载最新版本。
+>
+> **更新 Fork 版本**：推送新代码到 fork 后，需要手动更新缓存：
 >
 > ```bash
 > cd ~/.claude/plugins/marketplaces/<your-fork-name>
 > git pull
 > ```
 >
-> 然后重新安装插件并重载。如果版本号未变化，Claude Code 可能不会检测到更新，因此每次推送前建议先 bump version。
+> 然后删除缓存并重新安装。如果版本号未变化，Claude Code 可能不会检测到更新，因此每次推送前建议先 bump version：
+>
+> ```bash
+> npm run bump-version
+> ```
 
 ### 安装 Codex CLI
 
